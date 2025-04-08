@@ -11,6 +11,18 @@
   "url": "",
   "logo": "",
   "dependencies": [
+        {
+      "id": "4feea934-c32b-49b9-9706-66e5e8a3d2df",
+      "name": "Licensing",
+      "publisher": "Freddy",
+      "version": "3.0.0.0"
+    },
+    {
+      "id": "23ebd065-b289-4a68-85e3-b8410e360157",
+      "name": "SharePoint Connector",
+      "publisher": "hougaard.com",
+      "version": "6.0.0.0"
+    }
   ],
   "screenshots": [],
   "platform": "1.0.0.0",
