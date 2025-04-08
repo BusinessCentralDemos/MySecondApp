@@ -1,4 +1,7 @@
 name: ' CI/CD'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   workflow_dispatch:
@@ -11,7 +14,7 @@ on:
 
 defaults:
   run:
-    shell: powershell
+    shell: pwsh
 
 permissions:
   actions: read
@@ -27,7 +30,7 @@ env:
 jobs:
   Initialization:
     needs: [ ]
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     outputs:
       telemetryScopeJson: ${{ steps.init.outputs.telemetryScopeJson }}
       environmentsMatrixJson: ${{ steps.DetermineDeploymentEnvironments.outputs.EnvironmentsMatrixJson }}
@@ -50,7 +53,7 @@ jobs:
       - name: Dump Workflow Information
         uses: microsoft/AL-Go-Actions/DumpWorkflowInfo@v7.0
         with:
-          shell: powershell
+          shell: pwsh
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -61,13 +64,13 @@ jobs:
         id: init
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v7.0
         with:
-          shell: powershell
+          shell: pwsh
 
       - name: Read settings
         id: ReadSettings
         uses: microsoft/AL-Go-Actions/ReadSettings@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           get: type,powerPlatformSolutionFolder,useGitSubmodules
 
       - name: Read submodules token
@@ -75,7 +78,7 @@ jobs:
         if: env.useGitSubmodules != 'false' && env.useGitSubmodules != ''
         uses: microsoft/AL-Go-Actions/ReadSecrets@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           gitHubSecrets: ${{ toJson(secrets) }}
           getSecrets: '-gitSubmodulesToken'
 
@@ -96,7 +99,7 @@ jobs:
         id: determineProjectsToBuild
         uses: microsoft/AL-Go-Actions/DetermineProjectsToBuild@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           maxBuildDepth: ${{ env.workflowDepth }}
 
       - name: Determine PowerPlatform Solution Folder
@@ -109,7 +112,7 @@ jobs:
         id: DetermineDeliveryTargetSecrets
         uses: microsoft/AL-Go-Actions/DetermineDeliveryTargets@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           projectsJson: '${{ steps.determineProjectsToBuild.outputs.ProjectsJson }}'
           checkContextSecrets: 'false'
 
@@ -117,7 +120,7 @@ jobs:
         id: ReadSecrets
         uses: microsoft/AL-Go-Actions/ReadSecrets@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           gitHubSecrets: ${{ toJson(secrets) }}
           getSecrets: ${{ steps.DetermineDeliveryTargetSecrets.outputs.ContextSecrets }}
 
@@ -127,7 +130,7 @@ jobs:
         env:
           Secrets: '${{ steps.ReadSecrets.outputs.Secrets }}'
         with:
-          shell: powershell
+          shell: pwsh
           projectsJson: '${{ steps.determineProjectsToBuild.outputs.ProjectsJson }}'
           checkContextSecrets: 'true'
 
@@ -137,13 +140,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          shell: powershell
+          shell: pwsh
           getEnvironments: '*'
           type: 'CD'
 
   CheckForUpdates:
     needs: [ Initialization ]
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -151,21 +154,21 @@ jobs:
       - name: Read settings
         uses: microsoft/AL-Go-Actions/ReadSettings@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           get: templateUrl
 
       - name: Read secrets
         id: ReadSecrets
         uses: microsoft/AL-Go-Actions/ReadSecrets@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           gitHubSecrets: ${{ toJson(secrets) }}
           getSecrets: 'ghTokenWorkflow'
 
       - name: Check for updates to AL-Go system files
         uses: microsoft/AL-Go-Actions/CheckForUpdates@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           templateUrl: ${{ env.templateUrl }}
           token: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).ghTokenWorkflow }}
           downloadLatest: true
@@ -194,24 +197,10 @@ jobs:
       signArtifacts: true
       useArtifactCache: true
 
-  BuildPP:
-    needs: [ Initialization ]
-    if: (!failure()) && (!cancelled()) && needs.Initialization.outputs.powerPlatformSolutionFolder != ''
-    name: Build PowerPlatform Solution
-    uses: ./.github/workflows/_BuildPowerPlatformSolution.yaml
-    secrets: inherit
-    with:
-      shell: ${{ needs.Initialization.outputs.githubRunnerShell }}
-      runsOn: ${{ needs.Initialization.outputs.githubRunner }}
-      parentTelemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
-      project: ${{ needs.Initialization.outputs.powerPlatformSolutionFolder }}
-      projectName: ${{ needs.Initialization.outputs.powerPlatformSolutionFolder }}
-      publishArtifacts: ${{ github.ref_name == 'main' || startswith(github.ref_name, 'release/') || startswith(github.ref_name, 'releases/') || needs.Initialization.outputs.deliveryTargetsJson != '[]' || needs.Initialization.outputs.environmentCount > 0 }}
-
   DeployALDoc:
     needs: [ Initialization, Build ]
     if: (!cancelled()) && needs.Build.result == 'Success' && needs.Initialization.outputs.generateALDocArtifact == 1 && github.ref_name == 'main'
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     name: Deploy Reference Documentation
     permissions:
       contents: read
@@ -233,7 +222,7 @@ jobs:
       - name: Read settings
         uses: microsoft/AL-Go-Actions/ReadSettings@v7.0
         with:
-          shell: powershell
+          shell: pwsh
 
       - name: Setup Pages
         if: needs.Initialization.outputs.deployALDocArtifact == 1
@@ -242,7 +231,7 @@ jobs:
       - name: Build Reference Documentation
         uses: microsoft/AL-Go-Actions/BuildReferenceDocumentation@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           artifacts: '.artifacts'
 
       - name: Upload pages artifact
@@ -256,8 +245,8 @@ jobs:
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
   Deploy:
-    needs: [ Initialization, Build, BuildPP ]
-    if: (!cancelled()) && (needs.Build.result == 'success' || needs.Build.result == 'skipped') && (needs.BuildPP.result == 'success' || needs.BuildPP.result == 'skipped') && needs.Initialization.outputs.environmentCount > 0
+    needs: [ Initialization, Build ]
+    if: (!cancelled()) && (needs.Build.result == 'success' || needs.Build.result == 'skipped') && needs.Initialization.outputs.environmentCount > 0
     strategy: ${{ fromJson(needs.Initialization.outputs.environmentsMatrixJson) }}
     runs-on: ${{ fromJson(matrix.os) }}
     name: Deploy to ${{ matrix.environment }}
@@ -315,19 +304,19 @@ jobs:
         env:
           Secrets: '${{ steps.ReadSecrets.outputs.Secrets }}'
         with:
-          shell: powershell
+          shell: pwsh
           environmentName: ${{ matrix.environment }}
           artifactsFolder: '.artifacts'
           deploymentEnvironmentsJson: ${{ needs.Initialization.outputs.deploymentEnvironmentsJson }}
 
   Deliver:
-    needs: [ Initialization, Build, BuildPP ]
-    if: (!cancelled()) && (needs.Build.result == 'success' || needs.Build.result == 'skipped') && (needs.BuildPP.result == 'success' || needs.BuildPP.result == 'skipped') && needs.Initialization.outputs.deliveryTargetsJson != '[]'
+    needs: [ Initialization, Build ]
+    if: (!cancelled()) && (needs.Build.result == 'success' || needs.Build.result == 'skipped') && needs.Initialization.outputs.deliveryTargetsJson != '[]'
     strategy:
       matrix:
         deliveryTarget: ${{ fromJson(needs.Initialization.outputs.deliveryTargetsJson) }}
       fail-fast: false
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     name: Deliver to ${{ matrix.deliveryTarget }}
     steps:
       - name: Checkout
@@ -341,13 +330,13 @@ jobs:
       - name: Read settings
         uses: microsoft/AL-Go-Actions/ReadSettings@v7.0
         with:
-          shell: powershell
+          shell: pwsh
 
       - name: Read secrets
         id: ReadSecrets
         uses: microsoft/AL-Go-Actions/ReadSecrets@v7.0
         with:
-          shell: powershell
+          shell: pwsh
           gitHubSecrets: ${{ toJson(secrets) }}
           getSecrets: '${{ matrix.deliveryTarget }}Context'
 
@@ -356,16 +345,16 @@ jobs:
         env:
           Secrets: '${{ steps.ReadSecrets.outputs.Secrets }}'
         with:
-          shell: powershell
+          shell: pwsh
           type: 'CD'
           projects: ${{ needs.Initialization.outputs.projects }}
           deliveryTarget: ${{ matrix.deliveryTarget }}
           artifacts: '.artifacts'
 
   PostProcess:
-    needs: [ Initialization, Build, BuildPP, Deploy, Deliver, DeployALDoc ]
+    needs: [ Initialization, Build, Deploy, Deliver, DeployALDoc ]
     if: (!cancelled())
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -376,6 +365,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          shell: powershell
+          shell: pwsh
           telemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
           currentJobContext: ${{ toJson(job) }}
